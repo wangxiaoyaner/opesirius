@@ -121,6 +121,7 @@ int symbtable_enter(string name,string kind,string type,int value,int para_ifvar
 	new_item->name=name;
 	new_item->kind=kind;
 	new_item->size=0;
+	new_item->exist=0;
 	new_item->type=type;
 	new_item->value=value;
 	new_item->if_used=0;
@@ -145,7 +146,7 @@ static void symbtable_print_single(symbTable *itable)
 	while(tmp!=NULL)
 	{
 		cout <<  tmp->name << "\t" << tmp->level 
-			<< "\t"<< tmp->kind << "\t"<< tmp->type 
+			<< "\t"<< tmp->exist<<"\t"<<tmp->kind << "\t"<< tmp->type 
 			<<"\t"<< tmp->size << "\t"<<tmp->para_ifvar
 			<<"\t"<<tmp->value<<"\t"<<tmp->if_used
 			<<"\t"<<tmp->adr<<endl;
@@ -157,7 +158,7 @@ static void symbtable_print_single(symbTable *itable)
 
 void symbtable_display()
 {	
-	cout << "name\tlevel\tkind\ttype\tsize\tpara_ifvar\tvalue\tif_used\tadr\n";
+	cout << "name\tlevel\texist\tkind\ttype\tsize\tpara_ifvar\tvalue\tif_used\tadr\n";
 
 	for(int i=0;i<90;i++)
 	{//作为参数并不害怕应为参数区有对应的，var和const会被下一层使用

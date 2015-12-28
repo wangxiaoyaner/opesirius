@@ -25,6 +25,7 @@ typedef struct symbItem{
 	int adr;
 	int size;//func,proc,array
 	int para_ifvar;
+	int exist;//经过DAG荼毒还剩余的东西
 	struct symbItem *link;
 }symbItem;
 typedef struct quadruple{
@@ -110,6 +111,7 @@ void optimazation_adr_alloc();
 void generate_main();
 extern int my_writes_num;
 extern queue<string> my_write_string;
-
+void codes_to_codes();
 void basicblock_func_to_block();
 void basicblock_print_all_blocks();
+void bb_display_quad();

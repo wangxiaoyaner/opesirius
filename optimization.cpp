@@ -8,7 +8,7 @@ static void sigtable_addr_alloc(quadfunc *target)
 	symbItem *tmpitem=tmptable->first_item;
 	while(tmpitem!=NULL)
 	{
-		if(!tmpitem->adr&&tmpitem->kind=="var"||tmpitem->kind=="array"||tmpitem->kind=="arrvar")//未分配地址
+		if(tmpitem->exist&&!tmpitem->adr&&tmpitem->kind=="var"||tmpitem->kind=="array"||tmpitem->kind=="arrvar")//未分配地址
 		{
 			if(ebxediesi<4&&tmpitem->kind!="array")
 				tmpitem->adr=ebxediesi++;

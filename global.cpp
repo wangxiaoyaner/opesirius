@@ -29,18 +29,25 @@ void global_new_quadruple(string opr,symbItem *src1,symbItem *src2,symbItem *ans
 	//检查在后来被使用的局部变量.
 	if(src1!=NULL)
 	{
+		src1->exist=0;
 		if(src1->kind=="const"||src1->kind=="var")
 			if(src1->level<symbtable_now->level)
 				src1->if_used=1;
 	}
 	if(src2!=NULL)
+	{
+		src2->exist=0;
 		if(src2->kind=="const"||src2->kind=="var")
 			if(src2->level<symbtable_now->level)
 				src2->if_used=1;
+	}
 	if(ans!=NULL)
+	{
+		ans->exist=0;
 		if(ans->kind=="const"||ans->kind=="var")
 			if(ans->level<symbtable_now->level)
 				ans->if_used=1;
+	}
 	if(newitem->opr=="func")
 	{
 		quadfunc *newcodes=new quadfunc();

@@ -14,10 +14,7 @@ typedef struct dagnode
 	vector<symbItem*>tmpvars;
 }dagnode;
 
-
-static map<symbItem*,dagnode*> dag_map;
 static map<string,int> basicblock_opr_kind;
-static map<int,dagnode*> all_dagnode;
 static stack<int> all_nodes;
 static void opr_kind_init()//标记的是操作数的个数
 {
@@ -50,7 +47,7 @@ static void opr_kind_init()//标记的是操作数的个数
 	basicblock_opr_kind["fpara"]=6;
 	basicblock_opr_kind["writes"]=6;
 	basicblock_opr_kind["writee"]=6;
-	basicblock_opr_kind["read"]=6;
+	basicblock_opr_kind["read"]=-2;
 }
 static vector<dagnode*> block_dag_graph;//天啊，这里只能先这么不安全着了。
 static int dagnodenum=0;
@@ -94,6 +91,19 @@ static int if_item_in_dag(symbItem *t)//判断在表中是否有元素t，有久
 	if(symbitem_int.find(t)!=symbitem_int.end()&&symbitem_int[t]!=-1)
 		return symbitem_int[t];
 	return -1;
+}
+
+static int find_or_birth_child(symbItem *target)
+{
+	if(symbitem_int.find(target)!=symbitem_int.end()&&symbitem_int[target]!=-1)
+	{
+		int id=symbitem_int[target];
+		symbItem *ta=block_dag_graph[id]->relational_item;
+		if(ta==target)
+			return id;
+	}
+	create_new_node("0",target,NULL);
+	return block_dag_graph.size()-1;
 }
 
 static int find_or_birth_child(symbItem *target,int &mark)
@@ -162,6 +172,18 @@ static void meet_call_code()
 }
 static int find_or_make_father(string opr,symbItem *fa,symbItem *rela,int adra)
 {
+	if(symbitem_int.find(fa)!=symbitem_int.end()&&symbitem_int[fa]!=-1)
+	{
+		dagnode *tmp=block_dag_graph[symbitem_int[fa]];
+		for(vector<symbItem*>::iterator it=tmp->locals.begin();it!=tmp->locals.end();it++)
+		{
+			if(*it==fa)
+			{
+				tmp->locals.erase(it);
+				break;
+			}
+		}
+	}
 	if(opr=="assign")
 	{
 		add_identifers(adra,fa);
@@ -181,7 +203,7 @@ static int find_or_make_father(string opr,symbItem *fa,symbItem *rela,int adra)
 			if(block_dag_graph[i]->opr==opr&&block_dag_graph[i]->childs[0]==adra)
 			break;
 		}
-		if(len==i)
+		if(len==i||opr=="writes"||opr=="writee")
 		{
 			create_new_node(opr,rela,fa);
 			block_dag_graph[adra]->fathernum++;
@@ -196,9 +218,25 @@ static int find_or_make_father(string opr,symbItem *fa,symbItem *rela,int adra)
 			symbitem_int[fa]=i;
 		}
 	}
+	
 }
 static int find_or_make_father(string opr,symbItem *fa,symbItem *rela,int adra,int adrb)
 {
+	if(fa)
+	{
+		if(symbitem_int.find(fa)!=symbitem_int.end()&&symbitem_int[fa]!=-1)
+		{
+			dagnode *tmp=block_dag_graph[symbitem_int[fa]];
+			for(vector<symbItem*>::iterator it=tmp->locals.begin();it!=tmp->locals.end();it++)
+			{
+				if(*it==fa)
+				{
+					tmp->locals.erase(it);
+					break;
+				}
+			}
+		}
+	}
 	int len=block_dag_graph.size(),i;
 	for(i=0;i<len;i++)
 	{
@@ -261,8 +299,8 @@ static int find_right_node()
 			if(!block_dag_graph[j]->childs.empty())
 			{
 				int tmp=block_dag_graph[j]->childs[0];
-				while(/*block_dag_graph[tmp]->opr!="call"&&*/handle_if_required_node(tmp))
-				{//因为call之前可能需要传递参数，因此我没让他往前跑
+				while(block_dag_graph[tmp]->opr!="call"&&handle_if_required_node(tmp))
+				{
 					all_nodes.push(tmp);
 					if(block_dag_graph[tmp]->childs.empty())
 						break;
@@ -289,6 +327,12 @@ static quadruple* create_new_quadruple_in_block(string opr,symbItem* src1,symbIt
 	new_item->src2=src2;
 	new_item->ans=ans;
 	new_item->link=NULL;
+	if(src1)
+		src1->exist=1;
+	if(src2)
+		src2->exist=1;
+	if(ans)
+		ans->exist=1;
 	return new_item;
 }
 static symbItem* find_src_in_dag(int i)
@@ -338,6 +382,15 @@ static void create_new_dag_quad(int i,quadblock *block)
 		case -2:
 			new_item=create_new_quadruple_in_block(t->opr,t->relational_item,NULL,NULL);			
 			add_quad_to_block(new_item,block);
+		/*	if(!t->locals.empty())
+			{
+				for(int i=0;i<t->locals.size();i++)
+				{
+					new_item=create_new_quadruple_in_block("assign",t->relational_item,NULL,t->locals[i]);
+				
+					add_quad_to_block(new_item,block);
+				}
+			}*/
 			break;
 		case 2:
 			if(!t->locals.empty())
@@ -355,7 +408,7 @@ static void create_new_dag_quad(int i,quadblock *block)
 			else
 			{
 				if(t->tmpvars.empty())
-					cout << "IMPOSSIBLE" << endl;
+					cout << "IMPOSSIBLE|||" << endl;
 				else
 				{
 					new_item=create_new_quadruple_in_block(t->opr,find_src_in_dag(t->childs[0]),find_src_in_dag(t->childs[1]),t->tmpvars[0]);
@@ -390,11 +443,7 @@ static void create_new_dag_quad(int i,quadblock *block)
 			}
 			else
 			{
-				if(t->tmpvars.empty())
-				{
-					cout << "IMPOSSIBLE" << endl;
-				}
-				else
+				if(!t->tmpvars.empty())
 				{
 					new_item=create_new_quadruple_in_block("assign",t->relational_item,NULL,t->tmpvars[0]);
 					add_quad_to_block(new_item,block);
@@ -420,7 +469,7 @@ static void create_new_dag_quad(int i,quadblock *block)
 			}
 	}
 }
-static void print_info()
+static void print_info()//输出dag图的信息
 {
 	int len=block_dag_graph.size();
 	for(int i=0;i<len;i++)
@@ -455,6 +504,8 @@ static void block_dag_block(quadblock* block)
 		switch(basicblock_opr_kind[t->opr]){
 			case -2:
 				create_new_node(t->opr,t->src1,NULL);
+				if(t->opr=="read")
+					symbitem_int[t->src1]=-1;
 				break;
 			case 2:
 				adr_b=find_or_birth_child(t->src1,if_new_b);
@@ -527,13 +578,20 @@ static void block_dag_block(quadblock* block)
 				find_or_make_father(t->opr,NULL,NULL,adr_b,adr_c,adr_d);
 				break;
 			case 6:
-				adr_b=find_or_birth_child(t->src1,if_new_b);
+				if(t->opr=="writee"||t->opr=="writes"||t->opr=="rpara")
+				{
+					symbitem_int[t->src1]=-1;
+				}
+				if(t->opr=="assign"&&t->src1->name[0]!='_')
+					adr_b=find_or_birth_child(t->src1);//b:=a，就得有一个a0
+				else
+					adr_b=find_or_birth_child(t->src1,if_new_b);
 				find_or_make_father(t->opr,t->ans,t->src2,adr_b);
 				break;
 			case -3:
 				meet_call_code();
 
-				create_new_node(t->opr,t->src1,NULL);//而且孩子们的数目不确定。。
+				create_new_node(t->opr,t->src1,NULL);
 				for(int i=block_dag_graph.size()-2;(block_dag_graph[i]->opr=="fpara"||block_dag_graph[i]->opr=="rpara")&&i>=0;i--)
 				{
 					block_dag_graph[i]->fathernum++;
@@ -542,6 +600,33 @@ static void block_dag_block(quadblock* block)
 				break;
 			case 1:
 				adr_b=find_or_birth_child(t->src1,if_new_b);
+				if(if_opr_is_const(block_dag_graph[adr_b]))
+				{
+					int tmpv=block_dag_graph[adr_b]->relational_item->value;
+					int answer=t->opr=="neg"?tmpv*(-1):t->opr=="inc"?tmpv+1:tmpv-1;
+					symbItem *new_item=new symbItem();
+					new_item->value=answer;
+					if(block_dag_graph[adr_b]->relational_item->type=="char")
+					{
+						char tmp=answer;
+						new_item->name="\'";
+						new_item->name+=tmp;
+						new_item->name+="\'";
+						new_item->kind="constpool";
+						new_item->type="char";
+						new_item->link=NULL;
+					}
+					else
+					{
+						new_item->name=numtostring(answer);
+						new_item->type="integer";
+						new_item->kind="constpool";
+						new_item->link=NULL;
+					}
+					global_const_pool.push(new_item);
+					create_new_node("0",new_item,t->src1);//如果是孤立的临时变量结点，久可以不处理他了
+					break;
+				}
 				find_or_make_father(t->opr,t->src1,NULL,adr_b);
 				break;
 		}
@@ -593,6 +678,7 @@ static void print_block(quadblock* block)
 		tmp=tmp->link;
 	}*/
 }
+/*
 static void print_func_blocks(quadfunc *func)
 {
 	cout << "########################################################################" << endl;
@@ -615,8 +701,44 @@ void basicblock_print_all_blocks()
 		print_func_blocks(tmp);
 		tmp=tmp->link;
 	}
+}*/
+void bb_display_quad()
+{
+	quadfunc *tmp=quadruple_codes;
+	while(tmp!=NULL)
+	{
+		cout << "函数的名字是："<<tmp->table->name<<"\t"<<tmp->table->level<<" 函数内容如下:"<<endl;
+		for(int i=0;i<tmp->blocknum;i++)
+		{
+			quadruple *now=tmp->blocks[i]->firstcode;
+			while(now!=NULL)
+			{
+				cout << now->opr <<'\t';
+				if(now->src1)
+					cout<<now->src1->name<<'\t';
+				if(now->src2)
+					cout<<now->src2->name<<'\t';
+				if(now->ans)
+					cout<<now->ans->name;
+				cout << endl;
+				now=now->link;
+			}
+		}
+		tmp=tmp->link;
+	}
 }
-
+void codes_to_codes()
+{
+	quadfunc *tmp=quadruple_codes;
+	while(tmp!=NULL)
+	{
+		for(int i=0;i<tmp->blocknum;i++)
+		{
+			block_dag_block(tmp->blocks[i]);
+		}
+		tmp=tmp->link;
+	}
+}
 static void func_to_block(quadfunc* func)//划分基本块
 {
 	quadruple *tmp=func->firstcode;

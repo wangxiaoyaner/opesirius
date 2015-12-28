@@ -1,5 +1,5 @@
 #include"global.h"
-#define WIN_FORM
+//#define WIN_FORM
 static int level;
 static int hasmetpara_pushglobalreg;
 static map<string,symbItem*> tmpregpool;//eax,ecx,edx;
@@ -232,7 +232,7 @@ static  void handle_ans(symbItem *ans,string num1)
 {
 	if(ans->level==level)
 	{
-		if(ans->kind=="parameter")
+		 if(ans->kind=="parameter")
 		{
 			if(ans->para_ifvar)
 				fprintf(x86codes,"mov edx,[ebp+%d]\nmov [edx],%s\n",4+4*(level+ans->adr),num1.data());//!!
@@ -253,7 +253,14 @@ static  void handle_ans(symbItem *ans,string num1)
 	}
 	else
 	{
-		if(ans->kind=="parameter")//不是这一层的参数
+		if(ans->kind=="function")
+		{
+			if(ans->level==level-1)
+				fprintf(x86codes,"mov [ebp-4],%s\n",num1.data());
+			else
+				fprintf(x86codes,"mov edx,[ebp+%d]\nmov [edx-4],%s\n",8+ans->level*4,num1.data());
+		}
+		else if(ans->kind=="parameter")//不是这一层的参数
 		{
 			if(ans->para_ifvar)
 			{
@@ -413,13 +420,16 @@ display 区的构造总述如下:假定是从第 i 层模块进入到第 j 层�
 		else if(nowquad->opr=="assign")
 		{
 			string num1;
-			if(nowquad->src1->kind=="function")
+			if(nowquad->src1->kind=="function"&&nowquad->ans->kind!="function")
 			{
 				handle_ans(nowquad->ans,"eax");
 			}
 			else if(nowquad->ans->kind=="function")
 			{
-				handle_src1(nowquad->src1,num1);
+				if(nowquad->src1->kind=="function")
+					num1="eax";
+				else
+					handle_src1(nowquad->src1,num1);
 				if(nowquad->ans->level==level-1)
 				{
 					fprintf(x86codes,"mov [ebp-4],%s\n",num1.data());
